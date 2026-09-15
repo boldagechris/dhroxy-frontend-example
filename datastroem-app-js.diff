@@ -1,0 +1,51 @@
+diff --git a/src/App.js b/src/App.js
+index a08232c..0508a84 100644
+--- a/src/App.js
++++ b/src/App.js
+@@ -1,10 +1,11 @@
+ import React, { useState, useEffect, useRef } from 'react';
+-import { Heart, Activity, User, MessageSquare, Pill, Calendar, FileText, TrendingUp, Lock, Home, Send, Loader2, ChevronRight, Apple, Cigarette, Wine, Dumbbell, Users, Wallet, AlertCircle, Check, X, FlaskConical, ClipboardList, StickyNote, Database, Beaker, Watch } from 'lucide-react';
++import { Heart, Activity, User, MessageSquare, Pill, Calendar, FileText, TrendingUp, Lock, Home, Send, Loader2, ChevronRight, Apple, Cigarette, Wine, Dumbbell, Users, Wallet, AlertCircle, Check, X, FlaskConical, ClipboardList, StickyNote, Database, Beaker, Watch, Waves } from 'lucide-react';
+ import DataViewer from './components/DataViewer';
+ import DemoMenu from './components/demos/DemoMenu';
+ import HeaderConfig from './components/HeaderConfig';
+ import HealthKitViewer from './components/HealthKitViewer';
+ import IPSViewer from './components/IPSViewer';
++import Datastroem from './components/Datastroem';
+ import sundhedDkService from './services/sundhedDkService';
+ 
+ // Minimalistisk, tillidsfuld dansk sundhedsplatform
+@@ -107,8 +108,12 @@ const SundhedsAgent = () => {
+         })
+       );
+ 
+-      // Assemble into a bundle structure matching what the rest of the UI expects
++      // Assemble into a bundle structure matching what the rest of the UI expects.
++      // `type` is the resource type this entry was fetched for (independent of
++      // resource.resourceType, which for search endpoints like Observation is
++      // "Bundle", not "Observation") — used by Datastroem to show real fetch status.
+       const entries = results.map((result, i) => ({
++        type: resources[i].split('?')[0],
+         resource: result.status === 'fulfilled' && result.value ? result.value : null
+       }));
+ 
+@@ -249,6 +254,7 @@ Giv personlige, kontekstbaserede sundhedsråd på dansk. Vær empatisk og profes
+                 { id: 'demos', icon: Beaker, label: 'Labsvar Demo' },
+                 { id: 'dataviewer', icon: Database, label: 'Data Viewer' },
+                 { id: 'ips', icon: FileText, label: 'Patient Summary (IPS)' },
++                { id: 'datastroem', icon: Waves, label: 'Din Datastrøm' },
+                 { id: 'kram', icon: Activity, label: 'KRAM-faktorer' },
+                 { id: 'socio', icon: Wallet, label: 'Socioøkonomi' },
+                 { id: 'family', icon: Users, label: 'Familiehistorik' },
+@@ -680,6 +686,11 @@ Giv personlige, kontekstbaserede sundhedsråd på dansk. Vær empatisk og profes
+               </div>
+             )}
+ 
++            {/* Datastroem Tab */}
++            {activeTab === 'datastroem' && (
++              <Datastroem patientData={patientData} dhroxyConnected={dhroxyConnected} />
++            )}
++
+             {/* KRAM Tab */}
+             {activeTab === 'kram' && (
+               <div className="space-y-6 animate-fade-in">

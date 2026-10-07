@@ -16,6 +16,7 @@ import {
   Target
 } from 'lucide-react';
 import sundhedDkService from '../../services/sundhedDkService';
+import { getObservationValue as parseObservationValue } from '../../utils/fhir';
 
 /**
  * HealthDashboards - Sygdomsspecifikke dashboards
@@ -209,19 +210,7 @@ const HealthDashboards = () => {
   };
 
   // Hent værdi fra observation
-  const getObservationValue = (obs) => {
-    if (obs.valueQuantity?.value !== undefined) {
-      return {
-        value: obs.valueQuantity.value,
-        unit: obs.valueQuantity.unit || obs.valueQuantity.code || '',
-        isNumeric: true
-      };
-    }
-    if (obs.valueString) {
-      return { value: obs.valueString, unit: '', isNumeric: false };
-    }
-    return null;
-  };
+  const getObservationValue = (obs) => parseObservationValue(obs);
 
   // Beregn trend for en test
   const calculateTrend = (matchingObs) => {

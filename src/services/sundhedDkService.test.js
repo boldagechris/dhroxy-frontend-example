@@ -69,7 +69,7 @@ describe('SundhedDkService', () => {
         expect.any(Object)
       );
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('category=laboratory'),
+        expect.stringContaining('date=ge2015-01-01'),
         expect.any(Object)
       );
       expect(global.fetch).toHaveBeenCalledWith(
@@ -87,6 +87,23 @@ describe('SundhedDkService', () => {
       expect(result.error).toBe('Network error');
     });
 
+    it('should surface OperationOutcome diagnostics on errors', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          resourceType: 'OperationOutcome',
+          issue: [{ severity: 'error', diagnostics: 'Requested patient does not match the clinical session' }]
+        })
+      });
+
+      const result = await service.getPatientSummary('pat-0101900000');
+
+      expect(result.success).toBe(false);
+      expect(result.status).toBe(400);
+      expect(result.diagnostics).toContain('does not match the clinical session');
+    });
+
     it('should handle non-ok responses', async () => {
       global.fetch.mockResolvedValueOnce({
         ok: false,
@@ -100,24 +117,33 @@ describe('SundhedDkService', () => {
       expect(result.error).toContain('404');
     });
 
-    it('getAllPatientData should create correct bundle', async () => {
-      global.fetch.mockResolvedValueOnce({
+    it('getAllPatientData should fetch each resource with GET and assemble a bundle', async () => {
+      global.fetch.mockResolvedValue({
         ok: true,
-        json: async () => ({ resourceType: 'Bundle', type: 'transaction' })
+        json: async () => ({ resourceType: 'Bundle', type: 'searchset', entry: [] })
       });
 
-      await service.getAllPatientData({
+      const result = await service.getAllPatientData({
         includeLabResults: true,
-        includeConditions: true
+        includeConditions: true,
+        includeEncounters: false,
+        includeDocuments: false,
+        includeMedication: false,
+        includeImmunizations: false,
+        includeImaging: false,
+        includeAppointments: false,
+        includeOrganizations: false
       });
 
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/fhir',
-        expect.objectContaining({
-          method: 'POST',
-          body: expect.stringContaining('transaction')
-        })
-      );
+      const urls = global.fetch.mock.calls.map(c => c[0]);
+      expect(urls).toEqual([
+        '/fhir/Patient',
+        expect.stringContaining('/fhir/Observation?date=ge2015-01-01'),
+        '/fhir/Condition'
+      ]);
+      global.fetch.mock.calls.forEach(c => expect(c[1].method).toBeUndefined());
+      expect(result.success).toBe(true);
+      expect(result.data.entry).toHaveLength(3);
     });
   });
 
@@ -132,7 +158,7 @@ describe('SundhedDkService', () => {
 
       const callUrl = global.fetch.mock.calls[0][0];
       expect(callUrl).toContain('Observation');
-      expect(callUrl).toContain('category=laboratory');
+      expect(callUrl).toContain('_sort=-date');
       expect(callUrl).toContain('_count=50');
     });
 
@@ -145,8 +171,7 @@ describe('SundhedDkService', () => {
       await service.getConditions();
 
       const callUrl = global.fetch.mock.calls[0][0];
-      expect(callUrl).toContain('Condition');
-      expect(callUrl).toContain('_sort=-onset-date');
+      expect(callUrl).toBe('/fhir/Condition');
     });
   });
 });

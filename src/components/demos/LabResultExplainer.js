@@ -14,6 +14,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import sundhedDkService from '../../services/sundhedDkService';
+import { getObservationValue as parseObservationValue } from '../../utils/fhir';
 
 /**
  * LabResultExplainer - Intelligent forklaring af labsvar
@@ -245,23 +246,10 @@ const LabResultExplainer = () => {
 
   // Hent værdi fra observation - håndterer både Quantity og String typer
   const getObservationValue = (observation) => {
-    // Numerisk værdi (valueQuantity)
-    if (observation.valueQuantity?.value !== undefined) {
-      return {
-        value: observation.valueQuantity.value,
-        unit: observation.valueQuantity.unit || observation.valueQuantity.code || '',
-        isNumeric: true
-      };
-    }
-
-    // Tekst værdi (valueString)
-    if (observation.valueString) {
-      return {
-        value: observation.valueString,
-        unit: '',
-        isNumeric: false
-      };
-    }
+    // valueQuantity, or valueString (numeric text is treated as a number;
+    // newer dhroxy sends unitless lab values as valueString)
+    const parsed = parseObservationValue(observation);
+    if (parsed) return parsed;
 
     // CodeableConcept værdi (valueCodeableConcept)
     if (observation.valueCodeableConcept) {

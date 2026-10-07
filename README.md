@@ -25,11 +25,12 @@ A Danish health data dashboard ("Min Sundhedsagent") that fetches real patient d
 | Resource | sundhed.dk endpoint | What it shows |
 |---|---|---|
 | Patient | personvaelgerportal | Name, CPR, address, relations |
-| Observation | labsvar/svaroversigt | Lab results (10 year lookback) |
+| Observation | proevesvarportal/svaroversigt | Lab results (10 year lookback) |
 | Condition | ejournal/forloebsoversigt | Diagnoses from e-journal |
 | MedicationStatement | medicinkort2borger | Current medications |
 | Immunization | vaccination | Vaccination history |
 | Appointment | aftalerborger | Past and upcoming appointments |
+| DocumentReference | ejournal epikriser + notater | Epikriser and notater on the dashboard |
 
 ### UI features
 
@@ -38,6 +39,25 @@ A Danish health data dashboard ("Min Sundhedsagent") that fetches real patient d
 - Appointments are color-coded (upcoming vs past) with status badges
 - All self-reported data (KRAM, socio, family, chat) persists in localStorage
 - Partial failure handling: if some endpoints fail, the rest still render
+
+## Testing without a sundhed.dk login
+
+dhroxy ships a stub of the sundhed.dk APIs with synthetic data. In the dhroxy repo:
+
+```bash
+./gradlew sundhedStub                                              # terminal 1
+SUNDHED_CLIENT_BASE_URL=http://127.0.0.1:9090 ./gradlew bootRun    # terminal 2
+```
+
+Then `npm start` here and click "Hent data fra Sundhed.dk" (no auth headers needed). The stub's data is dated around June 2026.
+
+## Compatibility notes
+
+Works with dhroxy as of October 2026 and with older versions:
+
+- CPR is read from both `urn:oid:1.2.208.176.1.2` (DK Core, current dhroxy) and the older `urn:dk:cpr`.
+- Lab values without a unit arrive as `valueString`; numeric text is treated as a number (`src/utils/fhir.js`).
+- `Patient/{id}/$summary` only works for the person logged in on sundhed.dk, so the person selector defaults to "Mig selv".
 
 ## Prerequisites
 
@@ -81,6 +101,7 @@ GET /fhir/Condition
 GET /fhir/MedicationStatement
 GET /fhir/Immunization
 GET /fhir/Appointment
+GET /fhir/DocumentReference
 ```
 
 Each request includes `Accept: application/json` (required — without it sundhed.dk returns HTML for some endpoints like labsvar and medication).

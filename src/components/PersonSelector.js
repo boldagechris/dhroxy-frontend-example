@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, ChevronDown, Check } from 'lucide-react';
 import sundhedDkService from '../services/sundhedDkService';
+import { getCpr } from '../utils/fhir';
 
 /**
  * PersonSelector - Vælg hvilken person der skal vises data for
@@ -24,9 +25,13 @@ const PersonSelector = ({ onPersonSelected, selectedPerson }) => {
           .filter(patient => patient?.resourceType === 'Patient');
         setPatients(patientList);
 
-        // Auto-vælg første patient hvis ingen er valgt
+        // Auto-vælg den indloggede person ("MigSelv"), ellers den første.
+        // dhroxy afviser $summary for andre end den indloggede person.
         if (patientList.length > 0 && !selectedPerson) {
-          onPersonSelected(patientList[0]);
+          const self = patientList.find(p => p.extension?.some(
+            ext => ext.url === 'https://www.sundhed.dk/fhir/StructureDefinition/relationType' && ext.valueCode === 'MigSelv'
+          ));
+          onPersonSelected(self || patientList[0]);
         }
       }
     } catch (error) {
@@ -60,7 +65,7 @@ const PersonSelector = ({ onPersonSelected, selectedPerson }) => {
   };
 
   const getPatientCPR = (patient) => {
-    return patient.identifier?.find(id => id.system === 'urn:dk:cpr')?.value || '';
+    return getCpr(patient);
   };
 
   if (loading) {

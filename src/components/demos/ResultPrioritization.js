@@ -12,6 +12,7 @@ import {
   Zap
 } from 'lucide-react';
 import sundhedDkService from '../../services/sundhedDkService';
+import { getNumericValue, getValueUnit } from '../../utils/fhir';
 
 /**
  * ResultPrioritization - Prioriterer labsvar efter vigtighed
@@ -54,8 +55,8 @@ const ResultPrioritization = () => {
       const result = {
         observation: obs,
         name: obs.code?.coding?.[0]?.display || obs.code?.text || 'Ukendt test',
-        value: obs.valueQuantity?.value,
-        unit: obs.valueQuantity?.unit || obs.valueQuantity?.code || '',
+        value: getNumericValue(obs),
+        unit: getValueUnit(obs),
         date: obs.effectiveDateTime || obs.effectivePeriod?.start,
         status: priority.status,
         reason: priority.reason,
@@ -82,7 +83,7 @@ const ResultPrioritization = () => {
   // Beregn prioritet for et enkelt resultat
   const calculatePriority = (obs) => {
     const interpretation = obs.interpretation?.[0]?.coding?.[0]?.code;
-    const value = obs.valueQuantity?.value;
+    const value = getNumericValue(obs);
     const refRange = obs.referenceRange?.[0];
     const testName = obs.code?.coding?.[0]?.display?.toLowerCase() || '';
 

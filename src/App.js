@@ -6,6 +6,18 @@ import HeaderConfig from './components/HeaderConfig';
 import HealthKitViewer from './components/HealthKitViewer';
 import IPSViewer from './components/IPSViewer';
 import sundhedDkService from './services/sundhedDkService';
+import { getObservationValue, isEpikrise, isNotat } from './utils/fhir';
+
+// Positions of each resource in the assembled patientData bundle
+const BUNDLE_SLOT = {
+  patient: 0,
+  observations: 1,
+  conditions: 2,
+  medications: 3,
+  immunizations: 4,
+  appointments: 5,
+  documents: 6
+};
 
 // Minimalistisk, tillidsfuld dansk sundhedsplatform
 const SundhedsAgent = () => {
@@ -91,8 +103,9 @@ const SundhedsAgent = () => {
 
       // Fetch each resource individually in parallel
       // Observation: dhroxy defaults to 6 months lookback, use 10 years instead
+      // Order matters: the dashboard reads these by index (see BUNDLE_SLOT below).
       const resources = ['Patient', 'Observation?date=ge2015-01-01&_sort=-date&_count=1000', 'Condition',
-                         'MedicationStatement', 'Immunization', 'Appointment'];
+                         'MedicationStatement', 'Immunization', 'Appointment', 'DocumentReference'];
 
       const results = await Promise.allSettled(
         resources.map(async (res) => {
@@ -329,54 +342,63 @@ Giv personlige, kontekstbaserede sundhedsråd på dansk. Vær empatisk og profes
                     </div>
                   )}
 
-                  {patientData ? (
+                  {patientData ? (() => {
+                    const slot = (key) => patientData.entry?.[BUNDLE_SLOT[key]]?.resource;
+                    const countOf = (key) => slot(key)?.total || slot(key)?.entry?.length || 0;
+                    const observations = slot('observations')?.entry || [];
+                    const appointments = slot('appointments')?.entry || [];
+                    const documents = slot('documents')?.entry || [];
+                    const epikriser = documents.filter(e => isEpikrise(e.resource));
+                    const notater = documents.filter(e => isNotat(e.resource));
+                    return (
                     <div className="space-y-6">
                       <div className="grid grid-cols-2 gap-4">
                         <StatCard
                           icon={FileText}
                           label="Observationer"
-                          value={patientData.entry?.[1]?.resource?.total || patientData.entry?.[1]?.resource?.entry?.length || 0}
+                          value={countOf('observations')}
                           color="blue"
                         />
                         <StatCard
                           icon={AlertCircle}
                           label="Diagnoser"
-                          value={patientData.entry?.[2]?.resource?.total || patientData.entry?.[2]?.resource?.entry?.length || 0}
+                          value={countOf('conditions')}
                           color="red"
                         />
                         <StatCard
                           icon={Pill}
                           label="Medicin"
-                          value={patientData.entry?.[3]?.resource?.total || patientData.entry?.[3]?.resource?.entry?.length || 0}
+                          value={countOf('medications')}
                           color="purple"
                         />
                         <StatCard
                           icon={Activity}
                           label="Vaccinationer"
-                          value={patientData.entry?.[4]?.resource?.total || patientData.entry?.[4]?.resource?.entry?.length || 0}
+                          value={countOf('immunizations')}
                           color="green"
                         />
                         <StatCard
                           icon={Calendar}
                           label="Aftaler"
-                          value={patientData.entry?.[5]?.resource?.total || patientData.entry?.[5]?.resource?.entry?.length || 0}
+                          value={countOf('appointments')}
                           color="orange"
                         />
                       </div>
 
                       {/* Observationer / Labsvar */}
-                      {patientData.entry?.[1]?.resource?.entry && patientData.entry[1].resource.entry.length > 0 && (
+                      {observations.length > 0 && (
                         <div className="mt-8">
                           <h3 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
                             <FlaskConical className="w-5 h-5 text-teal-600" />
                             Seneste laboratoriesvar
                           </h3>
                           <div className="space-y-3">
-                            {patientData.entry[1].resource.entry.map((obs, index) => {
+                            {observations.map((obs, index) => {
                               const observation = obs.resource;
                               const code = observation.code?.coding?.[0]?.display || observation.code?.text || 'Ukendt test';
-                              const value = observation.valueQuantity?.value;
-                              const unit = observation.valueQuantity?.unit || observation.valueQuantity?.code;
+                              const obsValue = getObservationValue(observation);
+                              const value = obsValue?.value;
+                              const unit = obsValue?.unit;
                               const date = observation.effectiveDateTime || observation.effectivePeriod?.start;
                               const status = observation.status;
 
@@ -399,7 +421,7 @@ Giv personlige, kontekstbaserede sundhedsråd på dansk. Vær empatisk og profes
                                         </span>
                                       )}
                                     </div>
-                                    {value && (
+                                    {value !== undefined && value !== null && value !== '' && (
                                       <p className="text-xl font-bold text-teal-600 mb-0.5">
                                         {value} {unit}
                                       </p>
@@ -427,14 +449,14 @@ Giv personlige, kontekstbaserede sundhedsråd på dansk. Vær empatisk og profes
                       )}
 
                       {/* Epikriser */}
-                      {patientData.entry?.[5]?.resource?.entry && patientData.entry[5].resource.entry.length > 0 && (
+                      {epikriser.length > 0 && (
                         <div className="mt-8">
                           <h3 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
                             <ClipboardList className="w-5 h-5 text-purple-600" />
-                            Epikriser ({patientData.entry[5].resource.entry.length})
+                            Epikriser ({epikriser.length})
                           </h3>
                           <div className="space-y-3">
-                            {patientData.entry[5].resource.entry.map((item, index) => {
+                            {epikriser.map((item, index) => {
                               const epikrise = item.resource;
                               // DocumentReference structure: type, description, content.attachment.data
                               const epikriseType = epikrise.type?.coding?.[0]?.display || epikrise.type?.text || 'Epikrise';
@@ -476,14 +498,14 @@ Giv personlige, kontekstbaserede sundhedsråd på dansk. Vær empatisk og profes
                       )}
 
                       {/* Notater */}
-                      {patientData.entry?.[6]?.resource?.entry && patientData.entry[6].resource.entry.length > 0 && (
+                      {notater.length > 0 && (
                         <div className="mt-8">
                           <h3 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
                             <StickyNote className="w-5 h-5 text-amber-600" />
-                            Notater ({patientData.entry[6].resource.entry.length})
+                            Notater ({notater.length})
                           </h3>
                           <div className="space-y-3">
-                            {patientData.entry[6].resource.entry.map((item, index) => {
+                            {notater.map((item, index) => {
                               const notat = item.resource;
                               // DocumentReference structure: type, description, content.attachment.data
                               const notatType = notat.type?.coding?.[0]?.display || notat.type?.text || 'Notat';
@@ -525,14 +547,14 @@ Giv personlige, kontekstbaserede sundhedsråd på dansk. Vær empatisk og profes
                       )}
 
                       {/* Aftaler / Appointments */}
-                      {patientData.entry?.[5]?.resource?.entry && patientData.entry[5].resource.entry.length > 0 && (
+                      {appointments.length > 0 && (
                         <div className="mt-8">
                           <h3 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
                             <Calendar className="w-5 h-5 text-orange-600" />
-                            Aftaler ({patientData.entry[5].resource.entry.length})
+                            Aftaler ({appointments.length})
                           </h3>
                           <div className="space-y-3">
-                            {patientData.entry[5].resource.entry.map((item, index) => {
+                            {appointments.map((item, index) => {
                               const appointment = item.resource;
                               const title = appointment.description || appointment.serviceType?.[0]?.text || appointment.serviceType?.[0]?.coding?.[0]?.display || 'Aftale';
                               const startDate = appointment.start;
@@ -612,7 +634,8 @@ Giv personlige, kontekstbaserede sundhedsråd på dansk. Vær empatisk og profes
                         </div>
                       )}
                     </div>
-                  ) : (
+                    );
+                  })() : (
                     <div className="text-center py-12">
                       <Heart className="w-12 h-12 text-slate-300 mx-auto mb-4" />
                       <p className="text-slate-500">

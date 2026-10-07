@@ -3,7 +3,7 @@
  *
  * Mapper mellem Sundhed.dk API endpoints og FHIR ressourcer:
  * - Patient → /app/personvaelgerportal/api/v1/GetPersonSelection
- * - Observation (labs) → /api/labsvar/svaroversigt
+ * - Observation (labs) → /app/proevesvarportal/api/v1/svaroversigt
  * - Condition → /app/ejournalportalborger/api/ejournal/forloebsoversigt
  * - Encounter → /app/ejournalportalborger/api/ejournal/kontaktperioder
  * - DocumentReference (epikriser) → /app/ejournalportalborger/api/ejournal/epikriser
@@ -108,14 +108,25 @@ class SundhedDkService {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // dhroxy returns a FHIR OperationOutcome on errors; surface its message
+        let diagnostics = '';
+        try {
+          const body = await response.json();
+          diagnostics = body?.issue?.map(i => i.diagnostics).filter(Boolean).join('; ') || '';
+        } catch (_) {
+          // body was not JSON
+        }
+        const error = new Error(`HTTP error! status: ${response.status}${diagnostics ? ` - ${diagnostics}` : ''}`);
+        error.status = response.status;
+        error.diagnostics = diagnostics;
+        throw error;
       }
 
       const data = await response.json();
       return { success: true, data };
     } catch (error) {
       console.error(`Error fetching from ${url}:`, error);
-      return { success: false, error: error.message };
+      return { success: false, error: error.message, status: error.status, diagnostics: error.diagnostics };
     }
   }
 
@@ -155,14 +166,10 @@ class SundhedDkService {
 
   /**
    * Hent kontaktperioder (Encounters)
-   * @param {string} noegle - Nøgle til specifik forløb (optional)
+   * dhroxy's Encounter search takes no parameters; filter client-side if needed.
    */
-  async getEncounters(noegle = null) {
-    let url = `${this.baseUrl}/Encounter`;
-    if (noegle) {
-      url += `?identifier=${noegle}`;
-    }
-    return this.fetchFromDhroxy(url);
+  async getEncounters() {
+    return this.fetchFromDhroxy(`${this.baseUrl}/Encounter`);
   }
 
   /**

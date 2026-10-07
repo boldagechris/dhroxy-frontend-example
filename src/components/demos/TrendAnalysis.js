@@ -13,6 +13,7 @@ import {
   Activity
 } from 'lucide-react';
 import sundhedDkService from '../../services/sundhedDkService';
+import { getNumericValue, getValueUnit } from '../../utils/fhir';
 
 /**
  * TrendAnalysis - Viser udvikling i labsvar over tid
@@ -55,14 +56,16 @@ const TrendAnalysis = () => {
         groups[code] = {
           code,
           display,
-          unit: obs.valueQuantity?.unit || obs.valueQuantity?.code || '',
+          unit: getValueUnit(obs),
           measurements: []
         };
       }
 
-      if (obs.valueQuantity?.value !== undefined) {
+      const numericValue = getNumericValue(obs);
+      if (numericValue !== undefined) {
+        if (!groups[code].unit) groups[code].unit = getValueUnit(obs);
         groups[code].measurements.push({
-          value: obs.valueQuantity.value,
+          value: numericValue,
           date: obs.effectiveDateTime || obs.effectivePeriod?.start,
           status: obs.interpretation?.[0]?.coding?.[0]?.code,
           refLow: obs.referenceRange?.[0]?.low?.value,

@@ -53,6 +53,9 @@ const IPSViewer = () => {
         const expanded = {};
         parsed.sections.forEach(s => { expanded[s.code] = true; });
         setExpandedSections(expanded);
+      } else if (result.status === 400 && /does not match the clinical session/i.test(result.diagnostics || '')) {
+        // Newer dhroxy only builds a summary for the person logged in on sundhed.dk
+        setError('Patientresuméet kan kun hentes for den person, der er logget ind på sundhed.dk. Vælg dig selv i personvælgeren og prøv igen.');
       } else {
         setError(result.error || 'Kunne ikke hente IPS');
       }

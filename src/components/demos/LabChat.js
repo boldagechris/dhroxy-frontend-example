@@ -11,6 +11,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import sundhedDkService from '../../services/sundhedDkService';
+import { getObservationValue } from '../../utils/fhir';
 
 /**
  * LabChat - AI chat specifikt om labsvar
@@ -70,8 +71,9 @@ const LabChat = () => {
       .sort((a, b) => (b.effectiveDateTime || '').localeCompare(a.effectiveDateTime || ''));
     const formatted = observations.map(obs => {
       const name = obs.code?.coding?.[0]?.display || obs.code?.text || 'Ukendt';
-      const value = obs.valueQuantity?.value;
-      const unit = obs.valueQuantity?.unit || obs.valueQuantity?.code || '';
+      const obsValue = getObservationValue(obs);
+      const value = obsValue?.value;
+      const unit = obsValue?.unit || '';
       const date = obs.effectiveDateTime;
       const interpretation = obs.interpretation?.[0]?.coding?.[0]?.code;
       const refLow = obs.referenceRange?.[0]?.low?.value;
